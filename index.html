@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>FCL 全方位查询面板 v5.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --background-color: #f4f7f9;
+            --surface-color: #ffffff;
+            --text-color: #212529;
+            --muted-color: #6c757d;
+            --border-color: #dee2e6;
+            --shadow-color: rgba(0, 0, 0, 0.05);
+            --error-color: #dc3545;
+            --success-color: #28a745;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --radius: 8px;
+            --spacing: 1rem;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: calc(var(--spacing) * 2);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: var(--surface-color);
+            padding: calc(var(--spacing) * 2);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 24px var(--shadow-color);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: calc(var(--spacing) * 1.5);
+        }
+
+        .input-group {
+            display: flex;
+            gap: var(--spacing);
+            margin-bottom: calc(var(--spacing) * 1.5);
+        }
+
+        #userAddress {
+            flex-grow: 1;
+            padding: var(--spacing);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 1rem;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        #userAddress:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+
+        #queryButton {
+            padding: var(--spacing) calc(var(--spacing) * 1.5);
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #queryButton:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: calc(var(--spacing) * 1.5);
+        }
+
+        .tab-link {
+            padding: var(--spacing) calc(var(--spacing) * 1.5);
+            cursor: pointer;
+            border: none;
+            border-bottom: 3px solid transparent;
+            background: none;
+            font-size: 1rem;
+            color: var(--muted-color);
+            transition: color 0.2s, border-color 0.2s;
+            margin-bottom: -1px; /* Overlap with container border */
+        }
+        .tab-link:hover {
+            color: var(--primary-color);
+        }
+        .tab-link.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        #globalNetworkContainer {
+            margin-top: var(--spacing);
+        }
+
+        #network-list-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: var(--spacing);
+        }
+
+        .network-list-item {
+            padding: calc(var(--spacing) * 0.75) var(--spacing);
+            border-bottom: 1px solid #f1f3f5;
+            word-break: break-all; /* 确保长地址可以换行 */
+        }
+
+        .network-list-item.has-children {
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .network-list-item.has-children:hover {
+            background-color: #f8f9fa;
+        }
+
+        .network-list-item.has-children::before {
+            content: '▶'; /* 折叠状态 */
+            display: inline-block;
+            margin-right: 8px;
+            transition: transform 0.2s ease;
+            font-size: 0.8em;
+        }
+
+        .network-list-item.has-children.expanded::before {
+            transform: rotate(90deg); /* 展开状态 */
+        }
+
+        .network-list-children {
+            display: none; /* 默认隐藏子节点 */
+            padding-left: calc(var(--spacing) * 1.5);
+            border-left: 2px solid var(--primary-color);
+            margin-left: 4px;
+        }
+
+        .network-list-item.expanded + .network-list-children {
+            display: block; /* 点击后显示子节点 */
+        }
+
+        .info-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: calc(var(--spacing) * 1.5);
+            background-color: var(--surface-color);
+            box-shadow: 0 4px 12px var(--shadow-color);
+        }
+
+        .info-card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: var(--spacing);
+            margin-bottom: var(--spacing);
+            font-size: 1.2rem;
+            color: var(--text-color);
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: calc(var(--spacing) * 0.75) 0;
+            border-bottom: 1px solid #f1f3f5;
+            flex-wrap: wrap;
+        }
+        .info-item:last-child { border-bottom: none; }
+
+        .info-item dt { color: var(--muted-color); }
+        .info-item dd { font-weight: 500; text-align: right; word-break: break-all; }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: calc(var(--spacing) * 2) auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .error { color: var(--error-color); font-weight: bold; }
+        code { 
+            background-color: #e9ecef; 
+            padding: 0.2em 0.4em; 
+            border-radius: 4px; 
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        code:hover {
+            background-color: #dee2e6;
+        }
+
+        .query-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            display: inline-block;
+            transition: color 0.2s;
+        }
+        .query-link:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        .referral-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f1f3f5;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .referral-item:last-child {
+            border-bottom: none;
+        }
+
+        table.info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: var(--spacing);
+            box-shadow: 0 4px 12px var(--shadow-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid var(--border-color);
+            padding: var(--spacing);
+            text-align: left;
+        }
+        .info-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        .info-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .info-table code {
+            font-size: 0.85em;
+        }
+
+        /* 奖励分配明细样式 */
+        .rewards-breakdown {
+            background: var(--surface-color);
+            border-radius: var(--radius);
+            padding: calc(var(--spacing) * 1.5);
+            margin-top: var(--spacing);
+            border: 1px solid var(--border-color);
+        }
+
+        .rewards-breakdown h4 {
+            margin-top: 0;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .rewards-list {
+            margin: var(--spacing) 0;
+        }
+
+        .reward-item {
+            border-radius: var(--radius);
+            margin: 0.5rem 0;
+            padding: 1rem;
+            background: rgba(248, 249, 250, 0.8);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .reward-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .reward-item > div {
+            margin: 0.3rem 0;
+        }
+
+        .reward-item code {
+            font-size: 0.8rem;
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .rewards-summary {
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(0, 123, 255, 0.05), rgba(40, 167, 69, 0.05));
+            border: 1px solid rgba(0, 123, 255, 0.2);
+        }
+
+        .rewards-summary h5 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        .rewards-summary > div {
+            margin: 0.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .referral-details {
+            color: var(--muted-color);
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+        }
+
+        /* --- Mobile Responsive --- */
+        @media (max-width: 768px) {
+            body { padding: var(--spacing); }
+            .container { padding: var(--spacing); }
+            .input-group { flex-direction: column; }
+            .results-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .tabs { 
+                flex-direction: column; 
+                overflow-x: auto;
+                white-space: nowrap;
+                display: flex;
+                flex-direction: row;
+            }
+            .tab-link { 
+                border-bottom-width: 2px; 
+                min-width: 120px;
+                text-align: center;
+            }
+            h1 { font-size: 1.5rem; }
+        }
+
+        @media (max-width: 400px) {
+            .info-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.25rem;
+            }
+            .info-item dd {
+                text-align: left;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FCL 全方位查询面板 v5.0</h1>
+
+        <div class="input-group">
+            <input type="text" id="userAddress" placeholder="输入钱包地址查询...">
+            <button id="queryButton">🚀 查询</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-link active" data-tab="User">用户&奖励</button>
+            <button class="tab-link" data-tab="PersonalNetwork">个人团队</button>
+            <button class="tab-link" data-tab="GlobalNetwork">全网团队</button>
+            <button class="tab-link" data-tab="Dividend">分红查询</button>
+            <button class="tab-link" data-tab="Market">市场&LP池</button>
+            <button class="tab-link" data-tab="Contract">合约参数</button>
+            <button class="tab-link" data-tab="Mining">挖矿信息</button>
+            <button class="tab-link" data-tab="Destroy">销毁查询</button>
+            <button class="tab-link" data-tab="Receive">收益领取</button>
+           
+        </div>
+
+        <div id="User" class="tab-content active">
+            <div id="userInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="PersonalNetwork" class="tab-content">
+            <div id="personalNetworkInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="GlobalNetwork" class="tab-content">
+            <p>从当前输入查询的地址开始往下查询，最多显示三层。点击可展开或折叠节点。</p>
+            <div id="globalNetworkContainer">
+                <div id="network-list-container"></div>
+            </div>
+        </div>
+
+        <div id="Dividend" class="tab-content">
+            <p>输入钱包地址查询分红信息。</p>
+            <div id="dividendInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="Market" class="tab-content">
+            <div id="marketInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="Contract" class="tab-content">
+            <div id="contractInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="Mining" class="tab-content">
+            <div id="miningInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="Destroy" class="tab-content">
+            <div id="destroyInfoResult" class="results-grid"></div>
+        </div>
+
+        <div id="Receive" class="tab-content">
+            <div class="info-card">
+                <h3>收益领取说明</h3>
+                <p>以下操作将触发对应类型的收益计算和发放。请注意，执行转账会产生少量Gas费用。</p>
+                <table class="info-table">
+                    <thead>
+                        <tr>
+                            <th>收益类型</th>
+                            <th>触发方式</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>动态收益</td>
+                            <td id="dynamic-reward-trigger">转账 <strong>0</strong> 枚FCL至 <strong>矿池合约地址</strong> 触发</td>
+                        </tr>
+                        <tr>
+                            <td>静态收益</td>
+                            <td>转账 <strong>0</strong> 枚FCL至 <strong>任意个人地址</strong> 触发</td>
+                        </tr>
+                        <tr>
+                            <td>节点收益</td>
+                            <td id="node-reward-trigger">转账 <strong>0</strong> 枚FCL至 <strong>黑洞地址</strong> (<code>0x000000000000000000000000000000000000dEaD</code>) 触发</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="Test" class="tab-content">
+            <div class="info-card">
+                <h3>🧪 最终分配测试</h3>
+                <div style="margin-bottom: 20px;">
+                    <p style="color: #666; font-size: 14px;">该功能用于测试8000个地址的最终代币分配机制。仅限合约管理员使用。</p>
+                </div>
+                
+                <div style="display: grid; gap: 15px;">
+                    <button id="generateTestUsersBtn" onclick="generateTestUsers()" style="padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        步骤1: 生成8000个测试地址
+                    </button>
+                    
+                    <button id="executeTestDistributionBtn" onclick="executeTestDistribution()" style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer;" disabled>
+                        步骤2: 执行最终分配测试
+                    </button>
+                    
+                    <button id="getTestResultBtn" onclick="getTestResult()" style="padding: 12px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;" disabled>
+                        查看测试结果
+                    </button>
+                    
+                    <button id="resetTestBtn" onclick="resetTestState()" style="padding: 12px 20px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;" disabled>
+                        重置测试状态
+                    </button>
+                </div>
+                
+                <div id="testStatus" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; display: none;">
+                    <h4 style="margin-top: 0;">测试状态</h4>
+                    <div id="testStatusContent"></div>
+                </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script>
+        // --- 全量 ABI 定义 ---
+        const fullAbis = {
+            pool: [
+                "function getUserInfo(address user) view returns (address referrer, uint256 staticHashPower, uint256 dynamicHashPower, uint256 depositAmount, uint256 activationTime, uint256 staticRewards, uint256 dynamicRewards, uint256 finalTokenRewards, bool isActivated, bool isNode, uint256 directCount)",
+                "function getPendingStaticRewards(address user) view returns (uint256)",
+                "function getPendingDynamicRewards(address user) view returns (uint256)",
+                "function totalStaticHashPower() view returns (uint256)",
+                "function totalDynamicHashPower() view returns (uint256)",
+                "function totalMined() view returns (uint256)",
+                "function miningStarted() view returns (bool)",
+                "function miningStartTime() view returns (uint256)",
+                "function getCurrentDailyProduction() view returns (uint256)",
+                "function MIN_DEPOSIT() view returns (uint256)",
+                "function MAX_DEPOSIT() view returns (uint256)",
+                "function NODE_DEPOSIT() view returns (uint256)",
+                "function TOTAL_MINABLE() view returns (uint256)",
+                "function MAX_PRODUCTION() view returns (uint256)",
+                "function END_MINING_THRESHOLD() view returns (uint256)",
+                "function BNB_TO_HASHPOWER_RATE() view returns (uint256)",
+                "function allUsers(uint256 index) view returns (address)",
+                "function getAXMPrice() view returns (uint256)",
+                "function generateTestUsers()",
+                "function executeTestDistribution()",
+                "function getTestDistributionResult() view returns (uint256 totalTestUsers, uint256 firstTierCount, uint256 secondTierCount, uint256 thirdTierCount, uint256 tokensDistributed, uint256 remainingTokens)",
+                "function getTestUserTokens(uint256 userIndex) view returns (address userAddress, uint256 tokenBalance, string memory tier)",
+                "function resetTestState()",
+                "event TestUsersGenerated(uint256 totalUsers)",
+                "event TestDistributionCompleted(uint256 totalUsers, uint256 finalTotalMined)",
+                "function getDirectReferrals(address user) view returns (address[] memory)",
+                "function owner() view returns (address)",
+                "event TestStateReset()"
+            ],
+            bind: [
+                "function getReferrer(address user) view returns (address)",
+                "function getSubordinates(address user) view returns (address[] memory)",
+                "function isActive(address account) view returns (bool)"
+            ],
+            token: [
+                "function balanceOf(address account) view returns (uint256)", 
+                "function totalSupply() view returns (uint256)", 
+                "function decimals() view returns (uint8)",
+                "function name() view returns (string)",
+                "function symbol() view returns (string)"
+            ],
+            pair: [
+                "function getReserves() view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast)", 
+                "function token0() view returns (address)", 
+                "function token1() view returns (address)"
+            ]
+        };
+    //代币地址
+    const axmTokenAddress = "0xd43c85338beB7F7654bD72D0c0b8aFFf9938ea3a";
+    // 矿池地址
+    const poolAddress = "0x8fd6f829f2fa3fcbbb2059d7ccd287b0aa9d726a";
+    //LP池子地址
+    const pancakePairV2 = "0xf36132f218252e87e233ad38e43822950cfe14b0";
+        // --- 合约与地址配置 ---
+        const config = {
+            providerUrl: "https://bsc-dataseed.binance.org/",
+            poolAddress: poolAddress,  // 矿池地址
+            axmTokenAddress: axmTokenAddress,  // 代币地址
+            usdtAddress: '0x55d398326f99059fF775485246999027B3197955', // USDT on BSCtest
+            burnAddress: '0x000000000000000000000000000000000000dEaD', // 销毁地址合约地址
+            bindContractAddress: "0xb98828BDD1243FFb7cF1a9978B19740Ac09A614f",  // 绑定合约地址
+            nodePoolAddress: "0x7362Ca0fdc3C8461D4b430DDFcA65AF9c54aa498",  // 节点合约地址
+            lpPairAddress: pancakePairV2,  // LP池子地址
+        };
+
+    
+        // --- 动态更新收益领取信息 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const dynamicRewardEl = document.getElementById('dynamic-reward-trigger');
+            if (dynamicRewardEl) {
+                dynamicRewardEl.innerHTML = `转账 <strong>0</strong> 枚FCL至 <strong>矿池合约地址</strong> (<code class="copyable">${config.poolAddress}</code>) 触发`;
+            }
+
+            const nodeRewardEl = document.getElementById('node-reward-trigger');
+            if (nodeRewardEl) {
+                nodeRewardEl.innerHTML = `转账 <strong>0</strong> 枚FCL至 <strong>黑洞地址</strong> (<code class="copyable">${config.burnAddress}</code>) 触发`;
+            }
+        });
+
+        // --- Ethers.js 实例 ---
+        const provider = new ethers.providers.JsonRpcProvider(config.providerUrl);
+        const contracts = {
+            pool: new ethers.Contract(config.poolAddress, fullAbis.pool, provider),
+            bind: new ethers.Contract(config.bindContractAddress, fullAbis.bind, provider),
+            token: new ethers.Contract(config.axmTokenAddress, fullAbis.token, provider),
+            usdt: new ethers.Contract(config.usdtAddress, fullAbis.token, provider),
+            lp: new ethers.Contract(config.lpPairAddress, fullAbis.pair, provider)
+        };
+
+        // --- 工具函数 ---
+        const format = (val, decimals = 18, dp = 4) => parseFloat(ethers.utils.formatUnits(val, decimals)).toFixed(dp);
+        const formatDate = (ts) => ts.eq(0) ? '尚未激活' : new Date(ts.toNumber() * 1000).toLocaleString('zh-CN');
+        const render = (id, html) => { const element = document.getElementById(id); if (element) { element.innerHTML = html; } else { console.error(`Render target with id '${id}' not found.`); } };
+        const createCard = (title, data) => {
+            let itemsHtml = Object.entries(data).map(([key, value]) => `<div class="info-item"><dt>${key}</dt><dd>${value}</dd></div>`).join('');
+            return `<div class="info-card"><h3>${title}</h3>${itemsHtml}</div>`;
+        };
+        const showError = (val) => `<span class="error">${val}</span>`;
+        const truncateAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '';
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        let globalNetworkChart = null; // 用于持有ECharts实例
+
+        // --- UI 控制 ---
+        function queryAddress(address) {
+            document.getElementById('userAddress').value = address;
+            queryAllInfo();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function openTab(evt, tabName) {
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+            document.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        // --- 页面加载与初始化 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // 绑定标签页点击事件
+            document.querySelectorAll('.tab-link').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    const tabName = e.currentTarget.getAttribute('data-tab');
+                    openTab(e, tabName);
+                });
+            });
+
+            // 默认打开第一个标签页
+            if(document.querySelector('.tab-link')) {
+                document.querySelector('.tab-link').click();
+            }
+
+            // 加载上次查询的地址
+            const lastAddress = localStorage.getItem('lastUserAddress');
+            if (lastAddress) {
+                document.getElementById('userAddress').value = lastAddress;
+            }
+
+            // 绑定查询按钮和回车事件
+            document.getElementById('queryButton').addEventListener('click', queryAllInfo);
+            document.getElementById('userAddress').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') queryAllInfo();
+            });
+
+            // 事件委托：处理动态生成的查询链接
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.query-link')) {
+                    e.preventDefault();
+                    const address = e.target.closest('.query-link').getAttribute('data-address');
+                    if (address) {
+                        queryAddress(address);
+                    }
+                }
+            });
+        });
+
+        // --- 主查询函数 ---
+        async function queryAllInfo() {
+            const userAddress = document.getElementById('userAddress').value.trim();
+            if (!ethers.utils.isAddress(userAddress)) {
+                alert('请输入有效的钱包地址');
+                return;
+            }
+            localStorage.setItem('lastUserAddress', userAddress);
+
+            // 在重新渲染之前，先销毁旧的图表实例
+            if (globalNetworkChart) {
+                globalNetworkChart.dispose();
+                globalNetworkChart = null;
+            }
+
+            // 显示所有加载动画
+            render('userInfoResult', '<div class="loader"></div>');
+            render('personalNetworkInfoResult', '<div class="loader"></div>');
+            render('dividendInfoResult', '<div class="loader"></div>正在模拟入金1BNB的资金流向和奖励分配...');
+            render('marketInfoResult', '<div class="loader"></div>');
+            render('contractInfoResult', '<div class="loader"></div>');
+            render('miningInfoResult', '<div class="loader"></div>');
+            render('destroyInfoResult', '<div class="loader"></div>');
+
+            await Promise.all([
+                fetchUserAndRewardInfo(userAddress),
+                fetchPersonalNetworkInfo(userAddress),
+                fetchGlobalNetworkInfo(userAddress),
+                fetchDividendInfo(userAddress),
+                fetchMarketInfo(),
+                fetchContractInfo(),
+                fetchMiningInfo(),
+                fetchDestroyInfo()
+            ]).catch(err => {
+                console.error('一个或多个查询失败:', err);
+            });
+        }
+
+        // --- 数据获取模块 ---
+        async function fetchUserAndRewardInfo(userAddress) {
+            let userInfoData = {}, rewardData = {};
+            try {
+                const [
+                    userInfo, axmBalance, usdtBalance, usdtDecimals,
+                    miningStarted, miningStartTime
+                ] = await Promise.all([
+                    contracts.pool.getUserInfo(userAddress),
+                    contracts.token.balanceOf(userAddress),
+                    contracts.usdt.balanceOf(userAddress),
+                    contracts.usdt.decimals(),
+                    contracts.pool.miningStarted(),
+                    contracts.pool.miningStartTime()
+                ]);
+                
+                // 调试信息
+                console.log('UserInfo结构:', userInfo);
+                console.log('UserInfo长度:', userInfo.length);
+
+                // 计算分配次数
+                let allocationCountText = '不适用';
+                const activationTimestamp = userInfo[4].toNumber();
+                if (miningStarted && !miningStartTime.eq(0) && activationTimestamp > 0) {
+                    const now = Math.floor(Date.now() / 1000);
+                    const startTime = miningStartTime.toNumber();
+                    const periodDuration = 30 * 60; // 30分钟
+
+                    const globalDistributionCount = Math.floor((now - startTime) / periodDuration);
+                    const nextDistributionTimestamp = startTime + (globalDistributionCount + 1) * periodDuration;
+
+                    if (nextDistributionTimestamp > activationTimestamp) {
+                        const elapsedSinceActivation = nextDistributionTimestamp - activationTimestamp;
+                        let count = Math.floor(elapsedSinceActivation / periodDuration) - 1;
+                        allocationCountText = `${Math.max(0, count)} 次`;
+                    } else {
+                        allocationCountText = '0 次';
+                    }
+                } else if (activationTimestamp > 0) {
+                    allocationCountText = '挖矿未开始';
+                }
+                
+                // 判断用户激活状态：有算力就说明已激活
+                const isActivated = userInfo[1].gt(0) || userInfo[2].gt(0); // staticHashPower > 0 或 dynamicHashPower > 0
+                
+                userInfoData = {
+                    '用户状态': isActivated ? '✅ 已激活' : '❌ 未激活',
+                    '节点状态': userInfo[9] ? '💠 是节点' : '否',
+                    '激活时间': formatDate(userInfo[4]),
+                    '分配次数': allocationCountText,
+                    'FCL 余额': `<b>${format(axmBalance)} FCL</b>`,
+                    'USDT 余额': `<b>${format(usdtBalance, usdtDecimals)} USDT</b>`,
+                };
+                rewardData = {
+                    '入金总额': `${format(userInfo[3])} BNB`,
+                    '静态算力': format(userInfo[1], 18),
+                    '动态算力': format(userInfo[2], 18),
+                    '已领静态收益': `${format(userInfo[5], 18)} FCL`,
+                    '已领动态收益': `${format(userInfo[6], 18)} FCL`,
+                    '直推数量': `${userInfo[10].toString()} 人`
+                };
+
+                // 独立查询待领奖励，进行错误隔离
+                try {
+                    const [pendingStatic, pendingDynamic] = await Promise.all([
+                        contracts.pool.getPendingStaticRewards(userAddress),
+                        contracts.pool.getPendingDynamicRewards(userAddress)
+                    ]);
+                    rewardData['可领静态奖励'] = `${format(pendingStatic)} FCL`;
+                    rewardData['可领动态奖励'] = `${format(pendingDynamic)} FCL`;
+                } catch (e) {
+                    console.error('Could not get pending rewards:', e.message);
+                    rewardData['可领静态奖励'] = '0.0000 FCL';
+                    rewardData['可领动态奖励'] = '0.0000 FCL';
+                }
+
+                // 计算预计下次分红奖励
+                try {
+                    const [
+                        totalStaticHashPower, totalDynamicHashPower, 
+                        currentDailyProduction
+                    ] = await Promise.all([
+                        contracts.pool.totalStaticHashPower(),
+                        contracts.pool.totalDynamicHashPower(),
+                        contracts.pool.getCurrentDailyProduction()
+                    ]);
+
+                    const userStaticHashPower = userInfo[1]; // 用户静态算力
+                    const userDynamicHashPower = userInfo[2]; // 用户动态算力
+                    
+                    let nextStaticReward = 0;
+                    let nextDynamicReward = 0;
+                    
+                    if (miningStarted && !currentDailyProduction.eq(0)) {
+                        // 静态奖励：67%的周期产量 * (用户静态算力 / 全网静态算力)
+                        const staticPortion = currentDailyProduction.mul(667).div(1000);
+                        if (totalStaticHashPower.gt(0) && userStaticHashPower.gt(0)) {
+                            nextStaticReward = parseFloat(format(
+                                userStaticHashPower.mul(staticPortion).div(totalStaticHashPower)
+                            ));
+                        }
+                        
+                        // 动态奖励：33%的周期产量 * (用户动态算力 / 全网动态算力)
+                        const dynamicPortion = currentDailyProduction.mul(333).div(1000);
+                        if (totalDynamicHashPower.gt(0) && userDynamicHashPower.gt(0)) {
+                            nextDynamicReward = parseFloat(format(
+                                userDynamicHashPower.mul(dynamicPortion).div(totalDynamicHashPower)
+                            ));
+                        }
+                    }
+                    
+                    rewardData['预计下次静态分红'] = `${nextStaticReward.toFixed(4)} FCL`;
+                    rewardData['预计下次动态分红'] = `${nextDynamicReward.toFixed(4)} FCL`;
+                    rewardData['预计总分红'] = `${(nextStaticReward + nextDynamicReward).toFixed(4)} FCL`;
+                    
+                } catch (e) {
+                    console.error('Could not calculate next rewards:', e.message);
+                    rewardData['预计静态分红'] = '0.0000 FCL';
+                    rewardData['预计动态分红'] = '0.0000 FCL';
+                    rewardData['预计总分红'] = '0.0000 FCL';
+                }
+
+            } catch (e) {
+                console.error('Error fetching user/reward info:', e);
+                userInfoData['错误'] = showError('无法获取用户基本信息');
+                rewardData['错误'] = showError('无法获取收益信息');
+            }
+            render('userInfoResult', createCard('👤 用户信息', userInfoData) + createCard('💰 算力与收益', rewardData));
+        }
+
+        async function fetchPersonalNetworkInfo(userAddress) {
+            let networkData = {}, teamData = {};
+            try {
+                const [referrer, userInfo] = await Promise.all([
+                    contracts.bind.getReferrer(userAddress),
+                    contracts.pool.getUserInfo(userAddress)
+                ]);
+
+                if (referrer === ethers.constants.AddressZero) {
+                    networkData['推荐人'] = '无';
+                } else {
+                    networkData['推荐人'] = `<a href="#" class="query-link" data-address="${referrer}" title="点击查询该地址"><code>${referrer}</code></a>`;
+                }
+                // 独立查询直推列表
+                let directReferralsCount = 0;
+                try {
+                    const referrals = await contracts.bind.getSubordinates(userAddress);
+                    directReferralsCount = referrals.length;
+                    
+                    if (referrals.length > 0) {
+                        // 批量查询直推用户的详细信息
+                        const userInfoPromises = referrals.map(addr => 
+                            contracts.pool.getUserInfo(addr).catch(e => {
+                                console.warn(`Failed to get info for ${addr}:`, e.message);
+                                return null;
+                            })
+                        );
+                        
+                        const userInfos = await Promise.all(userInfoPromises);
+
+                        let referralHtml = referrals.map((addr, index) => {
+                            const userInfo = userInfos[index];
+                            let detailInfo = '';
+                            
+                            if (userInfo && userInfo.length >= 11) {
+                                const depositAmount = format(userInfo[3]); // depositAmount
+                                // 根据 1BNB = 1000算力 计算算力
+                                const hashPower = parseFloat(depositAmount) * 1000;
+                                detailInfo = `<span class="referral-details">投入: ${depositAmount} BNB | 算力: ${hashPower.toFixed(4)}</span>`;
+                            } else {
+                                detailInfo = '<span class="referral-details">投入: 查询失败 | 算力: 查询失败</span>';
+                            }
+                            
+                            return `<div class="referral-item"><a href="#" class="query-link" data-address="${addr}" title="点击查询该地址"><code>${addr.substring(0, 8)}...${addr.substring(34)}</code></a><br>${detailInfo}</div>`;
+                        }).join('');
+
+                        networkData['直推列表'] = referralHtml;
+                    } else {
+                        networkData['直推列表'] = '无';
+                    }
+                } catch (e) {
+                    networkData['直推列表'] = showError('查询失败');
+                    console.error('Could not get direct referrals:', e.message);
+                }
+
+                networkData['直推数量'] = `${directReferralsCount} 人`;
+
+                // 团队信息基于用户信息计算
+                try {
+                    const referrals = await contracts.bind.getSubordinates(userAddress);
+                    teamData['团队总人数'] = `${referrals.length} 人`;
+                    
+                    // 计算团队总业绩 - 遍历所有直推用户的入金总额
+                    let totalTeamDeposit = ethers.BigNumber.from(0);
+                    let activeTeamMembers = 0;
+                    
+                    if (referrals.length > 0) {
+                        // 批量查询直推用户信息
+                        const userInfoPromises = referrals.map(addr => 
+                            contracts.pool.getUserInfo(addr).catch(e => {
+                                console.warn(`Failed to get info for ${addr}:`, e.message);
+                                return null;
+                            })
+                        );
+                        
+                        const userInfos = await Promise.all(userInfoPromises);
+                        
+                        for (let i = 0; i < userInfos.length; i++) {
+                            const userInfo = userInfos[i];
+                            if (userInfo && userInfo.length >= 11) {
+                                // userInfo[3] 是 depositAmount
+                                totalTeamDeposit = totalTeamDeposit.add(userInfo[3]);
+                                // 判断激活状态：有算力就说明已激活
+                                const isActivated = userInfo[1].gt(0) || userInfo[2].gt(0);
+                                if (isActivated) {
+                                    activeTeamMembers++;
+                                }
+                            }
+                        }
+                    }
+                    
+                    teamData['团队总业绩'] = `${format(totalTeamDeposit)} BNB`;
+                    teamData['活跃成员'] = `${activeTeamMembers} 人`;
+                    teamData['平均业绩'] = referrals.length > 0 ? 
+                        `${format(totalTeamDeposit.div(referrals.length))} BNB/人` : '0 BNB/人';
+                        
+                } catch (e) {
+                    console.error('Could not get team info:', e.message);
+                    teamData['团队总业绩'] = '0.0000 BNB';
+                    teamData['团队总人数'] = '0 人';
+                    teamData['活跃成员'] = '0 人';
+                    teamData['平均业绩'] = '0 BNB/人';
+                }
+
+            } catch (e) {
+                console.error('Error fetching network info:', e);
+                networkData['错误'] = showError('无法获取网络信息');
+                teamData['错误'] = showError('无法获取团队信息');
+            }
+            render('personalNetworkInfoResult', createCard('🌐 推荐网络', networkData) + createCard('👥 团队数据', teamData));
+        }
+
+        // --- 全网团队网络查询 ---
+async function fetchGlobalNetworkInfo(startAddress) {
+    const listContainer = document.getElementById('network-list-container');
+    
+    try {
+        listContainer.innerHTML = '<div class="loader"></div>';
+
+        if (!startAddress || !ethers.utils.isAddress(startAddress)) {
+            listContainer.innerHTML = showError('无效的起始查询地址。');
+            return;
+        }
+
+        const nodes = [];
+        const links = [];
+        const addressSet = new Set();
+
+        async function fetchLayer(address, depth) {
+            if (depth > 3 || addressSet.has(address) || address === ethers.constants.AddressZero) {
+                return;
+            }
+            addressSet.add(address);
+
+            const userInfo = await contracts.pool.getUserInfo(address).catch(() => null);
+            const investment = userInfo ? parseFloat(format(userInfo[3])) : 0;
+            
+            nodes.push({
+                id: address,
+                value: investment,
+            });
+
+            const referrals = await contracts.bind.getSubordinates(address).catch(() => []);
+            for (const referral of referrals) {
+                if (referral !== ethers.constants.AddressZero) {
+                    links.push({ source: address, target: referral });
+                    await sleep(100);
+                    await fetchLayer(referral, depth + 1);
+                }
+            }
+        }
+
+        await fetchLayer(startAddress, 0);
+
+        const nodeMap = new Map(nodes.map(node => [node.id, { ...node, children: [] }]));
+        links.forEach(link => {
+            const parent = nodeMap.get(link.source);
+            const child = nodeMap.get(link.target);
+            if (parent && child) {
+                parent.children.push(child);
+            }
+        });
+        const treeData = nodeMap.get(startAddress);
+
+        renderNetworkList(treeData, listContainer);
+
+    } catch (e) {
+        console.error('获取全网团队网络信息失败:', e);
+        listContainer.innerHTML = showError(`获取全网团队网络信息失败: ${e.message}`);
+    }
+}
+
+function renderNetworkList(rootNode, container) {
+    container.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    function buildList(node) {
+        if (!node) return null;
+
+        const item = document.createElement('div');
+        item.className = 'network-list-item';
+        item.innerHTML = `<code>${node.id}</code> (投入: ${node.value.toFixed(4)} BNB)`;
+
+        const hasChildren = node.children && node.children.length > 0;
+        if (hasChildren) {
+            item.classList.add('has-children');
+
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'network-list-children';
+
+            node.children.forEach(child => {
+                const childElement = buildList(child);
+                if (childElement) {
+                    childrenContainer.appendChild(childElement);
+                }
+            });
+
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                item.classList.toggle('expanded');
+            });
+
+            const wrapper = document.createElement('div');
+            wrapper.appendChild(item);
+            wrapper.appendChild(childrenContainer);
+            return wrapper;
+        }
+        
+        return item;
+    }
+
+    const rootElement = buildList(rootNode);
+    if (rootElement) {
+        fragment.appendChild(rootElement);
+    }
+    container.appendChild(fragment);
+}
+
+        // --- 分红信息查询 - 模拟入金1BNB的资金流向和奖励分配 ---
+        async function fetchDividendInfo(userAddress) {
+            render('dividendInfoResult', '<div class="loader"></div>正在模拟入金1BNB的资金流向和奖励分配...');
+            
+            try {
+                const depositAmount = ethers.utils.parseEther("1.0"); // 1 BNB
+                const simulationData = await simulateDepositRewards(userAddress, depositAmount);
+                
+                const flowData = {
+                    '模拟入金': `${format(depositAmount)} BNB`,
+                    '用户地址': `<code>${truncateAddress(userAddress)}</code>`,
+                    '时间': new Date().toLocaleString('zh-CN')
+                };
+
+                let html = '';
+                
+                // 资金转换过程
+                html += '<div class="conversion-process" style="margin: 15px 0; padding: 15px; background: rgba(40, 167, 69, 0.1); border-radius: 8px; border-left: 4px solid #28a745;">';
+                html += '<h4>💱 资金转换过程</h4>';
+                html += `<div style="margin: 10px 0;">`;
+                html += `<div>1. 全部入金1 BNB通过PancakeSwap V3转换为USDT</div>`;
+                html += `<div>2. 假设当前BNB价格约 ${simulationData.bnbPrice} USDT</div>`;
+                html += `<div>3. 转换后获得约 <strong>${simulationData.totalUSDT} USDT</strong></div>`;
+                html += `</div></div>`;
+                
+                // 资金分配流向
+                html += '<div class="fund-distribution" style="margin: 15px 0;">';
+                html += '<h4>💰 资金分配流向</h4>';
+                
+                // 系统分配
+                html += '<div class="system-allocations" style="margin: 10px 0; padding: 10px; background: rgba(108, 117, 125, 0.1); border-radius: 5px;">';
+                html += '<h5>🏛️ 系统分配 (固定比例)</h5>';
+                simulationData.systemAllocations.forEach(allocation => {
+                    html += `
+                        <div style="margin: 5px 0; padding: 8px; background: white; border-radius: 3px; border-left: 3px solid ${getRewardColor(allocation.type)};">
+                            <div><strong>${allocation.type}</strong></div>
+                            <div>分配金额: <span style="color: #007bff; font-weight: bold;">${allocation.amount} USDT</span> (${allocation.percentage}%)</div>
+                            <div>接收地址: <code>${truncateAddress(allocation.recipient)}</code></div>
+                            ${allocation.description ? `<div style="color: #6c757d; font-size: 0.9em;">${allocation.description}</div>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                // 推荐奖励分配
+                if (simulationData.referralRewards && simulationData.referralRewards.length > 0) {
+                    html += '<div class="referral-rewards" style="margin: 10px 0; padding: 10px; background: rgba(40, 167, 69, 0.1); border-radius: 5px;">';
+                    html += '<h5>🎯 推荐奖励分配 (20%分层分配)</h5>';
+                    
+                    simulationData.referralRewards.forEach((reward, index) => {
+                        html += `
+                            <div style="margin: 5px 0; padding: 8px; background: white; border-radius: 3px; border-left: 3px solid ${getRewardColor(reward.type)};">
+                                <div><strong>${reward.type}</strong></div>
+                                <div>接收地址: <code>${truncateAddress(reward.recipient)}</code></div>
+                                <div>USDT奖励: <span style="color: #28a745; font-weight: bold;">${reward.usdtAmount} USDT</span> (${reward.percentage}%)</div>
+                                <div>算力奖励: <span style="color: #17a2b8; font-weight: bold;">+${reward.hashPowerAmount}</span> 算力 (${reward.hashPowerPercentage}%)</div>
+                                ${reward.level ? `<div>推荐层级: 第${reward.level}层</div>` : ''}
+                                ${reward.condition ? `<div style="color: #6c757d; font-size: 0.9em;">条件: ${reward.condition}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                } else {
+                    html += '<div class="no-referrals" style="margin: 10px 0; padding: 10px; background: rgba(255, 193, 7, 0.1); border-radius: 5px; color: #856404;">';
+                    html += '<h5>⚠️ 推荐奖励分配</h5>';
+                    html += '<div>该用户暂无推荐关系，20%推荐奖励资金将：</div>';
+                    html += '<div>• 用于后续用户的推荐奖励池</div>';
+                    html += '<div>• 或作为系统备用资金</div>';
+                    html += '</div>';
+                }
+                
+                // 薄饼买币注入LP机制
+                html += '<div class="pancake-mechanism" style="margin: 10px 0; padding: 10px; background: rgba(253, 126, 20, 0.1); border-radius: 5px;">';
+                html += '<h5>🥞 薄饼买币注入LP机制 (1.5%)</h5>';
+                html += `<div>机制说明: ${simulationData.pancakeMechanism.amount} USDT用于购买FCL代币并注入流动性池</div>`;
+                html += '<div>执行步骤:</div>';
+                html += '<div style="margin-left: 20px;">1. 使用1.5% USDT在薄饼V2购买FCL代币</div>';
+                html += '<div style="margin-left: 20px;">2. 将购买的FCL与等量USDT组成LP注入流动性池</div>';
+                html += '<div style="margin-left: 20px;">3. 增加FCL/USDT池子深度，减少价格滑点</div>';
+                html += '<div style="margin-left: 20px;">4. 为用户提供更好的交易体验</div>';
+                html += '</div>';
+                
+                html += '</div>';
+                
+                // 统计汇总
+                html += '<div class="summary" style="margin: 15px 0; padding: 15px; background: rgba(23, 162, 184, 0.1); border-radius: 8px; border-left: 4px solid #17a2b8;">';
+                html += '<h4>📊 分配统计汇总</h4>';
+                html += `<div class="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">`;
+                html += `<div><strong>总USDT:</strong> ${simulationData.totalUSDT} USDT</div>`;
+                html += `<div><strong>推荐奖励:</strong> ${simulationData.summary.totalReferralRewards} USDT (${simulationData.summary.referralPercentage}%)</div>`;
+                html += `<div><strong>系统费用:</strong> ${simulationData.summary.totalSystemFees} USDT (${simulationData.summary.systemPercentage}%)</div>`;
+                html += `<div><strong>剩余资金:</strong> ${simulationData.summary.remainingFunds} USDT (${simulationData.summary.remainingPercentage}%)</div>`;
+                html += `<div><strong>用户算力增加:</strong> +${simulationData.summary.userHashPowerGain}</div>`;
+                html += `<div><strong>推荐算力分配:</strong> +${simulationData.summary.totalReferralHashPower}</div>`;
+                html += `</div>`;
+                html += '</div>';
+                
+                render('dividendInfoResult', 
+                    createCard('💰 入金分配模拟', flowData) + 
+                    '<div style="margin-top: 15px;">' + html + '</div>'
+                );
+                
+            } catch (e) {
+                console.error('Error simulating dividend info:', e);
+                render('dividendInfoResult', showError('模拟分红信息时出错: ' + e.message));
+            }
+        }
+
+        // 完整模拟入金分配逻辑 - 严格按照合约规则
+        async function simulateDepositRewards(userAddress, depositAmount) {
+            const depositBNB = parseFloat(format(depositAmount));
+            
+            // 模拟BNB转USDT (假设当前价格600 USDT)
+            const bnbPrice = 600; // 可以从实际合约获取
+            const totalUSDT = (depositBNB * bnbPrice).toFixed(2);
+            const totalUSDTAmount = parseFloat(totalUSDT);
+            
+            const result = {
+                bnbPrice: bnbPrice,
+                totalUSDT: totalUSDT,
+                systemAllocations: [],
+                referralRewards: [],
+                pancakeMechanism: {},
+                summary: {}
+            };
+            
+            // 系统固定分配
+            const systemAllocations = [
+                { type: '技术团队', percentage: 2, recipient: config.techWallet, description: '用于技术开发和维护' },
+                { type: '运营团队', percentage: 8, recipient: config.operationWallet, description: '用于项目运营和推广' },
+                { type: '节点分红池', percentage: 5, recipient: config.nodePoolAddress, description: '分配给激活节点的奖励池' },
+                { type: '备用金', percentage: 5, recipient: config.poolAddress, description: '价格达到10U时用于回购销毁' },
+                { type: '薄饼买币注入LP', percentage: 1.5, recipient: 'PancakeSwap V2', description: '自动买币并增加流动性' }
+            ];
+            
+            systemAllocations.forEach(allocation => {
+                const amount = (totalUSDTAmount * allocation.percentage / 100).toFixed(4);
+                result.systemAllocations.push({
+                    ...allocation,
+                    amount: amount
+                });
+            });
+            
+            // 薄饼机制详情
+            result.pancakeMechanism = {
+                amount: (totalUSDTAmount * 1.5 / 100).toFixed(4),
+                description: '1.5% USDT用于在薄饼V2购买FCL并注入流动性池'
+            };
+            
+            // 推荐奖励分配 (20%总额)
+            const referralTotalAmount = totalUSDTAmount * 0.2;
+            const userHashPower = depositBNB * 1000; // 1 BNB = 1000算力
+            
+            try {
+                const referrer = await contracts.bind.getReferrer(userAddress);
+                
+                if (referrer && referrer !== '0x0000000000000000000000000000000000000000') {
+                    // 直推奖励 (10%)
+                    const directReward = referralTotalAmount * 0.5; // 20%中的50%
+                    const directHashPower = userHashPower * 0.1; // 10%算力
+                    
+                    result.referralRewards.push({
+                        type: '直推奖励',
+                        recipient: referrer,
+                        usdtAmount: directReward.toFixed(4),
+                        percentage: '10',
+                        hashPowerAmount: directHashPower.toFixed(0),
+                        hashPowerPercentage: '10',
+                        level: 1
+                    });
+                    
+                    // 多代奖励分配 (剩余10%)
+                    const multiGenAmount = referralTotalAmount * 0.5;
+                    let currentReferrer = referrer;
+                    
+                    // 获取直推数量来确定多代奖励
+                    try {
+                        const directCount = await contracts.pool.getUserDirectCount(referrer);
+                        const directCountNum = directCount.toNumber();
+                        
+                        // 2代奖励 (需要2个直推)
+                        if (directCountNum >= 2) {
+                            const reward2 = multiGenAmount * 0.2; // 2%
+                            const hashPower2 = userHashPower * 0.25; // 25%算力
+                            
+                            result.referralRewards.push({
+                                type: '2代奖励',
+                                recipient: currentReferrer,
+                                usdtAmount: reward2.toFixed(4),
+                                percentage: '2',
+                                hashPowerAmount: hashPower2.toFixed(0),
+                                hashPowerPercentage: '25',
+                                level: 2,
+                                condition: '需要2个直推'
+                            });
+                            
+                            // 继续向上查找3代
+                            const upperReferrer = await contracts.bind.getReferrer(currentReferrer);
+                            if (upperReferrer && upperReferrer !== '0x0000000000000000000000000000000000000000') {
+                                const upperDirectCount = await contracts.pool.getUserDirectCount(upperReferrer);
+                                
+                                // 3代奖励 (需要3个直推)
+                                if (upperDirectCount.toNumber() >= 3) {
+                                    const reward3 = multiGenAmount * 0.08; // 0.8%
+                                    const hashPower3 = userHashPower * 0.1; // 10%算力
+                                    
+                                    result.referralRewards.push({
+                                        type: '3代奖励',
+                                        recipient: upperReferrer,
+                                        usdtAmount: reward3.toFixed(4),
+                                        percentage: '0.8',
+                                        hashPowerAmount: hashPower3.toFixed(0),
+                                        hashPowerPercentage: '10',
+                                        level: 3,
+                                        condition: '需要3个直推'
+                                    });
+                                    
+                                    // 4-15代奖励 (每代需要对应直推数，每代0.6%收益，6.6%算力)
+                                    let currentLevel = 4;
+                                    let currentAddr = upperReferrer;
+                                    
+                                    while (currentLevel <= 15) {
+                                        try {
+                                            const nextReferrer = await contracts.bind.getReferrer(currentAddr);
+                                            if (!nextReferrer || nextReferrer === '0x0000000000000000000000000000000000000000') break;
+                                            
+                                            const nextDirectCount = await contracts.pool.getUserDirectCount(nextReferrer);
+                                            if (nextDirectCount.toNumber() >= currentLevel) {
+                                                const rewardN = multiGenAmount * 0.06; // 0.6%
+                                                const hashPowerN = userHashPower * 0.066; // 6.6%算力
+                                                
+                                                result.referralRewards.push({
+                                                    type: `${currentLevel}代奖励`,
+                                                    recipient: nextReferrer,
+                                                    usdtAmount: rewardN.toFixed(4),
+                                                    percentage: '0.6',
+                                                    hashPowerAmount: hashPowerN.toFixed(0),
+                                                    hashPowerPercentage: '6.6',
+                                                    level: currentLevel,
+                                                    condition: `需要${currentLevel}个直推`
+                                                });
+                                            }
+                                            
+                                            currentAddr = nextReferrer;
+                                            currentLevel++;
+                                        } catch (e) {
+                                            console.warn(`获取第${currentLevel}层推荐人失败:`, e.message);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('获取直推数量失败:', e.message);
+                    }
+                }
+            } catch (e) {
+                console.warn('获取推荐关系失败:', e.message);
+            }
+            
+            // 计算统计数据
+            const totalReferralRewards = result.referralRewards.reduce((sum, r) => sum + parseFloat(r.usdtAmount), 0);
+            const totalSystemFees = result.systemAllocations.reduce((sum, a) => sum + parseFloat(a.amount), 0);
+            const remainingFunds = totalUSDTAmount - totalReferralRewards - totalSystemFees;
+            const totalReferralHashPower = result.referralRewards.reduce((sum, r) => sum + parseFloat(r.hashPowerAmount), 0);
+            
+            result.summary = {
+                totalReferralRewards: totalReferralRewards.toFixed(4),
+                referralPercentage: ((totalReferralRewards / totalUSDTAmount) * 100).toFixed(2),
+                totalSystemFees: totalSystemFees.toFixed(4),
+                systemPercentage: ((totalSystemFees / totalUSDTAmount) * 100).toFixed(2),
+                remainingFunds: remainingFunds.toFixed(4),
+                remainingPercentage: ((remainingFunds / totalUSDTAmount) * 100).toFixed(2),
+                userHashPowerGain: userHashPower.toFixed(0),
+                totalReferralHashPower: totalReferralHashPower.toFixed(0)
+            };
+            
+            return result;
+        }
+        
+        // 获取奖励类型对应的颜色
+        function getRewardColor(type) {
+            const colorMap = {
+                '直推奖励': '#28a745',
+                '2代奖励': '#17a2b8',
+                '3代奖励': '#20c997',
+                '4代奖励': '#6f42c1',
+                '5代奖励': '#e83e8c',
+                '技术团队': '#fd7e14',
+                '运营团队': '#ffc107',
+                '节点分红池': '#6610f2',
+                '备用金': '#dc3545',
+                '薄饼买币注入LP': '#fd7e14',
+                '节点池分红': '#fd7e14',
+                '间推奖励 (节点)': '#17a2b8',
+                '默认': '#6c757d'
+            };
+            
+            // 处理动态生成的多代奖励颜色
+            if (type.includes('代奖励') && !colorMap[type]) {
+                const colors = ['#17a2b8', '#20c997', '#6f42c1', '#e83e8c', '#fd7e14', '#ffc107'];
+                const level = parseInt(type.match(/\d+/)[0]);
+                return colors[(level - 2) % colors.length];
+            }
+            
+            return colorMap[type] || colorMap['默认'];
+        }
+
+        async function fetchDestroyInfo() {
+            render('destroyInfoResult', '<div class="loader"></div>正在查询销毁机制与备用金信息...');
+            
+            try {
+                // 获取销毁相关数据
+                // 注意: getDestroyReserve 和 lastDestroyTime 在当前ABI中不存在，暂时移除
+                const [
+                    burnedBalance,
+                    axmPrice,
+                    poolUSDTBalance
+                ] = await Promise.all([
+                    contracts.token.balanceOf(config.burnAddress),
+                    contracts.pool.getAXMPrice(),
+                    contracts.usdt.balanceOf(config.poolAddress)
+                ]);
+
+                // 为缺失的合约函数提供默认值
+                const destroyReserve = ethers.BigNumber.from(0);
+                const lastDestroyTime = ethers.BigNumber.from(0);
+                
+                const destroyData = {
+                    '已销毁FCL总量': `${format(burnedBalance)} FCL`,
+                    '销毁地址': `<code>0x000000000000000000000000000000000000dEaD</code>`,
+                    '当前FCL价格': `${format(axmPrice, 18)} USDT`,
+                    '上次销毁时间': lastDestroyTime.toNumber() > 0 ? new Date(lastDestroyTime.toNumber() * 1000).toLocaleString('zh-CN') : '从未执行'
+                };
+                
+                // 备用金信息
+                const reserveData = {
+                    '当前备用金': `${format(destroyReserve, 18)} USDT`,
+                    '矿池USDT余额': `${format(poolUSDTBalance, 18)} USDT`,
+                    '备用金占比': `${poolUSDTBalance.gt(0) ? (parseFloat(format(destroyReserve, 18)) / parseFloat(format(poolUSDTBalance, 18)) * 100).toFixed(2) : '0'}%`
+                };
+                
+                // 销毁机制说明
+                const mechanismHtml = `
+                    <div class="destroy-mechanism" style="margin: 15px 0;">
+                        <h4>🔥 每日销毁机制说明</h4>
+                        <div style="background: rgba(220, 53, 69, 0.1); border-radius: 8px; padding: 15px; border-left: 4px solid #dc3545;">
+                            <div style="margin: 8px 0;"><strong>触发条件:</strong></div>
+                            <div style="margin-left: 15px;">• FCL价格 ≥ 10 USDT</div>
+                            <div style="margin-left: 15px;">• 距离上次销毁 ≥ 24小时</div>
+                            <div style="margin-left: 15px;">• 备用金余额充足</div>
+                            
+                            <div style="margin: 12px 0 8px 0;"><strong>销毁规则:</strong></div>
+                            <div style="margin-left: 15px;">• 销毁数量 = 矿池USDT余额的1%的50%</div>
+                            <div style="margin-left: 15px;">• 使用备用金在薄饼V2购买FCL</div>
+                            <div style="margin-left: 15px;">• 直接买入到销毁地址 (0x...dEaD)</div>
+                            
+                            <div style="margin: 12px 0 8px 0;"><strong>备用金来源:</strong></div>
+                            <div style="margin-left: 15px;">• 每笔入金的5%自动累积</div>
+                            <div style="margin-left: 15px;">• 专门用于回购销毁机制</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 计算下次可销毁的条件
+                const currentTime = Math.floor(Date.now() / 1000);
+                const nextDestroyTime = lastDestroyTime.toNumber() + 86400; // 24小时后
+                const canDestroyTime = nextDestroyTime > currentTime;
+                const priceReached = parseFloat(format(axmPrice, 18)) >= 10;
+                const hasReserve = destroyReserve.gt(0);
+                
+                const nextDestroyHtml = `
+                    <div class="next-destroy" style="margin: 15px 0; padding: 15px; background: rgba(23, 162, 184, 0.1); border-radius: 8px; border-left: 4px solid #17a2b8;">
+                        <h4>⏰ 下次销毁预测</h4>
+                        <div class="condition-check">
+                            <div style="margin: 5px 0;">
+                                <span style="color: ${priceReached ? '#28a745' : '#dc3545'};">
+                                    ${priceReached ? '✅' : '❌'} 价格条件: ${format(axmPrice, 18)} USDT ${priceReached ? '≥' : '<'} 10 USDT
+                                </span>
+                            </div>
+                            <div style="margin: 5px 0;">
+                                <span style="color: ${!canDestroyTime ? '#28a745' : '#dc3545'};">
+                                    ${!canDestroyTime ? '✅' : '❌'} 时间条件: ${canDestroyTime ? `还需等待 ${Math.ceil((nextDestroyTime - currentTime) / 3600)} 小时` : '可以执行'}
+                                </span>
+                            </div>
+                            <div style="margin: 5px 0;">
+                                <span style="color: ${hasReserve ? '#28a745' : '#dc3545'};">
+                                    ${hasReserve ? '✅' : '❌'} 备用金充足: ${format(destroyReserve, 18)} USDT
+                                </span>
+                            </div>
+                        </div>
+                        
+                        ${priceReached && !canDestroyTime && hasReserve ? 
+                            `<div style="margin-top: 10px; padding: 10px; background: rgba(40, 167, 69, 0.2); border-radius: 5px; color: #155724;">
+                                <strong>🎉 满足销毁条件！下次有用户入金时将自动触发销毁</strong>
+                            </div>` : 
+                            `<div style="margin-top: 10px; padding: 10px; background: rgba(255, 193, 7, 0.2); border-radius: 5px; color: #856404;">
+                                <strong>⏳ 暂不满足销毁条件，需等待所有条件满足</strong>
+                            </div>`
+                        }
+                    </div>
+                `;
+                
+                render('destroyInfoResult', 
+                    createCard('🔥 销毁数据', destroyData) + 
+                    createCard('💰 备用金状态', reserveData) + 
+                    mechanismHtml + 
+                    nextDestroyHtml
+                );
+                
+            } catch (e) {
+                console.error('Error fetching destroy info:', e);
+                render('destroyInfoResult', showError('查询销毁信息时出错: ' + e.message));
+            }
+        }
+
+        async function fetchMarketInfo() {
+            let marketData = {}, lpData = {};
+            try {
+                const [
+                    totalSupply, burnedBalance, axmInPool, usdtInPool,
+                    lpReserves, lpToken0, usdtDecimals
+                ] = await Promise.all([
+                    contracts.token.totalSupply(),
+                    contracts.token.balanceOf(config.burnAddress),
+                    contracts.token.balanceOf(config.poolAddress),
+                    contracts.usdt.balanceOf(config.poolAddress),
+                    contracts.lp.getReserves(),
+                    contracts.lp.token0(),
+                    contracts.usdt.decimals()
+                ]);
+
+                // Market Data
+                marketData = {
+                    '总供应量': `${format(totalSupply)} FCL`,
+                    '总销毁量': `${format(burnedBalance)} FCL`,
+                    '流通量': `${format(totalSupply.sub(burnedBalance))} FCL`,
+                    '矿池FCL余额': `<b>${format(axmInPool)} FCL</b>`,
+                    '矿池USDT余额': `<b>${format(usdtInPool, usdtDecimals)} USDT</b>`
+                };
+
+                // LP Data
+                const axmIsToken0 = lpToken0.toLowerCase() === config.axmTokenAddress.toLowerCase();
+                const axmReserve = axmIsToken0 ? lpReserves._reserve0 : lpReserves._reserve1;
+                const usdtReserve = axmIsToken0 ? lpReserves._reserve1 : lpReserves._reserve0;
+                
+                if (axmReserve.gt(0) && usdtReserve.gt(0)) {
+                    const price = parseFloat(format(usdtReserve, usdtDecimals)) / parseFloat(format(axmReserve));
+                    lpData = {
+                        'FCL 储备': `${format(axmReserve)} FCL`,
+                        'USDT 储备': `${format(usdtReserve, usdtDecimals)} USDT`,
+                        '当前价格': `1 FCL ≈ ${price.toFixed(6)} USDT`,
+                        '市值估算': `${(parseFloat(format(totalSupply.sub(burnedBalance))) * price).toFixed(2)} USDT`
+                    };
+                } else {
+                    lpData = {
+                        'FCL 储备': '0 FCL',
+                        'USDT 储备': '0 USDT',
+                        '当前价格': '暂无流动性',
+                        '市值估算': '0 USDT'
+                    };
+                }
+
+            } catch (e) {
+                console.error('Error fetching market info:', e);
+                marketData['错误'] = showError('无法获取市场信息');
+                lpData['错误'] = showError('无法获取LP池信息');
+            }
+            render('marketInfoResult', createCard('📈 代币经济', marketData) + createCard('💧 LP流动性池', lpData));
+        }
+
+        async function fetchContractInfo() {
+            let contractData = {}, addressData = {};
+            try {
+                const [
+                    minDeposit, maxDeposit, nodeDeposit, totalMinable, 
+                    maxProduction, endMiningThreshold, bnbToHashpowerRate
+                ] = await Promise.all([
+                    contracts.pool.MIN_DEPOSIT(),
+                    contracts.pool.MAX_DEPOSIT(),
+                    contracts.pool.NODE_DEPOSIT(),
+                    contracts.pool.TOTAL_MINABLE(),
+                    contracts.pool.MAX_PRODUCTION(),
+                    contracts.pool.END_MINING_THRESHOLD(),
+                    contracts.pool.BNB_TO_HASHPOWER_RATE()
+                ]);
+
+                contractData = {
+                    '最小入金': `${format(minDeposit, 18, 4)} BNB`,
+                    '最大入金': `${format(maxDeposit, 18, 2)} BNB`,
+                    '节点质押额': `${format(nodeDeposit, 18, 2)} BNB`,
+                    '总可挖矿量': `${format(totalMinable)} FCL`,
+                    '最大产出限制': `${format(maxProduction)} FCL`,
+                    '结束挖矿阈值': `${format(endMiningThreshold)} FCL`,
+                    '1BNB算力比率': bnbToHashpowerRate.toString()
+                };
+
+                addressData = {
+                    '矿池合约': `<code title="点击复制" onclick="copyToClipboard('${config.poolAddress}')">${config.poolAddress}</code>`,
+                    'FCL代币': `<code title="点击复制" onclick="copyToClipboard('${config.axmTokenAddress}')">${config.axmTokenAddress}</code>`,
+                    '绑定合约': `<code title="点击复制" onclick="copyToClipboard('${config.bindContractAddress}')">${config.bindContractAddress}</code>`,
+                    'USDT合约': `<code title="点击复制" onclick="copyToClipboard('${config.usdtAddress}')">${config.usdtAddress}</code>`,
+                    'LP池地址': `<code title="点击复制" onclick="copyToClipboard('${config.lpPairAddress}')">${config.lpPairAddress}</code>`,
+                    '节点合约': `<code title="点击复制" onclick="copyToClipboard('${config.nodePoolAddress}')">${config.nodePoolAddress}</code>`
+                };
+
+            } catch (e) {
+                console.error('Error fetching contract info:', e);
+                contractData['错误'] = showError('无法获取合约参数');
+                addressData['错误'] = showError('无法获取合约地址');
+            }
+            render('contractInfoResult', createCard('⚙️ 合约参数', contractData) + createCard('📍 合约地址', addressData));
+        }
+
+        async function fetchMiningInfo() {
+            let miningData = {}, hashpowerData = {};
+            try {
+                const [
+                    totalStaticHashPower, totalDynamicHashPower, totalMined,
+                    miningStarted, miningStartTime
+                ] = await Promise.all([
+                    contracts.pool.totalStaticHashPower(),
+                    contracts.pool.totalDynamicHashPower(),
+                    contracts.pool.totalMined(),
+                    contracts.pool.miningStarted(),
+                    contracts.pool.miningStartTime()
+                ]);
+
+                // 计算挖矿分配相关信息
+                let nextDistributionTime = '尚未开始';
+                let distributionCount = 0;
+                let currentPeriodProduction = 0;
+                let calculatedTotalMined = 0; // 计算得出的总挖矿量
+                
+                if (miningStarted && !miningStartTime.eq(0)) {
+                    const now = Math.floor(Date.now() / 1000);
+                    const startTime = miningStartTime.toNumber();
+                    
+                    // 计算已经过去的30分钟周期数
+                    const elapsedTime = now - startTime;
+                    const periodDuration = 30 * 60; // 30分钟 = 1800秒
+                    distributionCount = Math.floor(elapsedTime / periodDuration);
+                    
+                    // 计算下次分配时间
+                    const nextPeriodStart = startTime + (distributionCount + 1) * periodDuration;
+                    nextDistributionTime = new Date(nextPeriodStart * 1000).toLocaleString('zh-CN');
+                    
+                    // 获取当前周期的产量
+                    try {
+                        currentPeriodProduction = await contracts.pool.getCurrentDailyProduction();
+                    } catch (e) {
+                        console.warn('无法获取当前周期产量:', e.message);
+                    }
+
+                    // 计算总挖矿量：累计所有已完成周期的产量
+                    calculatedTotalMined = 0;
+                    for (let period = 0; period < distributionCount; period++) {
+                        // 计算每个周期属于第几个月
+                        const monthIndex = Math.floor(period / 30);
+                        
+                        // 首期（第0个月）产量：1000枚
+                        let monthProduction = 1000;
+                        
+                        // 从第二期（第1个月）开始，每月产量增加5%
+                        for (let i = 1; i <= monthIndex; i++) {
+                            monthProduction = monthProduction * 1.05; // 增加5%
+                        }
+                        
+                        // 单个周期的产量（月产量除以30个周期）
+                        const periodProduction = monthProduction / 30;
+                        calculatedTotalMined += periodProduction;
+                    }
+                }
+
+                miningData = {
+                    '挖矿状态': miningStarted ? '✅ 已开始' : '❌ 未开始',
+                    '开始时间': miningStartTime.eq(0) ? '尚未开始' : new Date(miningStartTime.toNumber() * 1000).toLocaleString('zh-CN'),
+                    '下次分配时间': nextDistributionTime,
+                    '已分配次数': `${distributionCount} 次`,
+                    '当前周期产量': `${format(currentPeriodProduction || 0)} FCL`,
+                    '已挖总量(计算)': `${calculatedTotalMined.toFixed(4)} FCL`,
+                    '已领取总量(合约)': `${format(totalMined)} FCL`,
+                    '剩余可挖': `${format(ethers.BigNumber.from('95219000000000000000000').sub(totalMined))} FCL`
+                };
+
+                hashpowerData = {
+                    '全网静态算力': format(totalStaticHashPower, 18),
+                    '全网动态算力': format(totalDynamicHashPower, 18),
+                    '总算力': format(totalStaticHashPower.add(totalDynamicHashPower), 18),
+                    '算力密度': totalStaticHashPower.add(totalDynamicHashPower).gt(0) ? 
+                        `${format(totalMined.mul(10000).div(totalStaticHashPower.add(totalDynamicHashPower)), 2)} FCL/算力` : '0'
+                };
+
+            } catch (e) {
+                console.error('Error fetching mining info:', e);
+                miningData['错误'] = showError('无法获取挖矿信息');
+                hashpowerData['错误'] = showError('无法获取算力信息');
+            }
+            render('miningInfoResult', createCard('⛏️ 挖矿状态', miningData) + createCard('💪 全网算力', hashpowerData));
+        }
+
+        // --- 测试功能函数 ---
+
+
+
+
+
+
+
+
+
+
+        // 工具函数：复制到剪贴板
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('地址已复制到剪贴板！');
+            }).catch(err => {
+                console.error('复制失败:', err);
+                // 备用方案
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('地址已复制到剪贴板！');
+            });
+        }
+    </script>
+</body>
+</html>
