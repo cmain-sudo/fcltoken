@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>FCL 全方位查询面板 v5.0</title>
+    <title>FCL 全方位查询面板 v5.1</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -368,7 +368,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>FCL 全方位查询面板 v5.0</h1>
+        <h1>FCL 全方位查询面板 v5.1</h1>
 
         <div class="input-group">
             <input type="text" id="userAddress" placeholder="输入钱包地址查询...">
@@ -499,15 +499,16 @@
                 "function miningStarted() view returns (bool)",
                 "function miningStartTime() view returns (uint256)",
                 "function getCurrentDailyProduction() view returns (uint256)",
-                "function MIN_DEPOSIT() view returns (uint256)",
-                "function MAX_DEPOSIT() view returns (uint256)",
-                "function NODE_DEPOSIT() view returns (uint256)",
+                "function minDeposit() view returns (uint256)",
+                "function maxDeposit() view returns (uint256)",
+                "function nodeDeposit() view returns (uint256)",
                 "function TOTAL_MINABLE() view returns (uint256)",
                 "function MAX_PRODUCTION() view returns (uint256)",
                 "function END_MINING_THRESHOLD() view returns (uint256)",
                 "function BNB_TO_HASHPOWER_RATE() view returns (uint256)",
                 "function allUsers(uint256 index) view returns (address)",
                 "function getAXMPrice() view returns (uint256)",
+                "function getUserDirectCount(address user) view returns (uint256)",
                 "function generateTestUsers()",
                 "function executeTestDistribution()",
                 "function getTestDistributionResult() view returns (uint256 totalTestUsers, uint256 firstTierCount, uint256 secondTierCount, uint256 thirdTierCount, uint256 tokensDistributed, uint256 remainingTokens)",
@@ -535,22 +536,27 @@
                 "function getReserves() view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast)", 
                 "function token0() view returns (address)", 
                 "function token1() view returns (address)"
+            ],
+            nodePool: [
+                "function isNode(address) view returns (bool)",
+                "function getNodeCount() view returns (uint256)",
+                "function getNodes() view returns (address[] memory)"
             ]
         };
     //代币地址
-    const axmTokenAddress = "0xd43c85338beB7F7654bD72D0c0b8aFFf9938ea3a";
+    const axmTokenAddress = "0x15C5d7c676b182918fCD0B22d1Be977CDB09d334";
     // 矿池地址
-    const poolAddress = "0x8fd6f829f2fa3fcbbb2059d7ccd287b0aa9d726a";
+    const poolAddress = "0x1840A0D4bBeEdFde3f605EFed75e25296f2c86c4";
     //LP池子地址
-    const pancakePairV2 = "0xf36132f218252e87e233ad38e43822950cfe14b0";
+    const pancakePairV2 = "0x41b83c2A2C316B2e52747Df56c5DAA63af2781d5";
         // --- 合约与地址配置 ---
         const config = {
-            providerUrl: "https://bsc-dataseed.binance.org/",
+            providerUrl: "https://bsc-mainnet.nodereal.io/v1/f224021f8b984416ae51cc25997b38a0",
             poolAddress: poolAddress,  // 矿池地址
             axmTokenAddress: axmTokenAddress,  // 代币地址
-            usdtAddress: '0x55d398326f99059fF775485246999027B3197955', // USDT on BSCtest
+            usdtAddress: '0x55d398326f99059fF775485246999027B3197955', // USDT (BSC主网)
             burnAddress: '0x000000000000000000000000000000000000dEaD', // 销毁地址合约地址
-            bindContractAddress: "0xb98828BDD1243FFb7cF1a9978B19740Ac09A614f",  // 绑定合约地址
+            bindContractAddress: "0x01e36386C6bee07AEFfC57D01a84806c7219eBd8",  // 绑定合约地址
             nodePoolAddress: "0x7362Ca0fdc3C8461D4b430DDFcA65AF9c54aa498",  // 节点合约地址
             lpPairAddress: pancakePairV2,  // LP池子地址
         };
@@ -576,7 +582,8 @@
             bind: new ethers.Contract(config.bindContractAddress, fullAbis.bind, provider),
             token: new ethers.Contract(config.axmTokenAddress, fullAbis.token, provider),
             usdt: new ethers.Contract(config.usdtAddress, fullAbis.token, provider),
-            lp: new ethers.Contract(config.lpPairAddress, fullAbis.pair, provider)
+            lp: new ethers.Contract(config.lpPairAddress, fullAbis.pair, provider),
+            nodePool: new ethers.Contract(config.nodePoolAddress, fullAbis.nodePool, provider)
         };
 
         // --- 工具函数 ---
@@ -689,14 +696,15 @@
             try {
                 const [
                     userInfo, axmBalance, usdtBalance, usdtDecimals,
-                    miningStarted, miningStartTime
+                    miningStarted, miningStartTime, isNodeStatus
                 ] = await Promise.all([
                     contracts.pool.getUserInfo(userAddress),
                     contracts.token.balanceOf(userAddress),
                     contracts.usdt.balanceOf(userAddress),
                     contracts.usdt.decimals(),
                     contracts.pool.miningStarted(),
-                    contracts.pool.miningStartTime()
+                    contracts.pool.miningStartTime(),
+                    contracts.nodePool.isNode(userAddress)
                 ]);
                 
                 // 调试信息
@@ -706,23 +714,21 @@
                 // 计算分配次数
                 let allocationCountText = '不适用';
                 const activationTimestamp = userInfo[4].toNumber();
-                if (miningStarted && !miningStartTime.eq(0) && activationTimestamp > 0) {
-                    const now = Math.floor(Date.now() / 1000);
-                    const startTime = miningStartTime.toNumber();
-                    const periodDuration = 30 * 60; // 30分钟
+                const now = Math.floor(Date.now() / 1000);
+                const startTime = miningStartTime.toNumber();
+                const periodDuration = 24 * 60 * 60; // 24小时
 
-                    const globalDistributionCount = Math.floor((now - startTime) / periodDuration);
-                    const nextDistributionTimestamp = startTime + (globalDistributionCount + 1) * periodDuration;
-
-                    if (nextDistributionTimestamp > activationTimestamp) {
-                        const elapsedSinceActivation = nextDistributionTimestamp - activationTimestamp;
-                        let count = Math.floor(elapsedSinceActivation / periodDuration) - 1;
-                        allocationCountText = `${Math.max(0, count)} 次`;
+                if (activationTimestamp > 0) {
+                    // 若挖矿尚未开始（无开始时间或当前时间早于开始时间），显示“挖矿未开始”
+                    if (!miningStarted || miningStartTime.eq(0) || now < startTime) {
+                        allocationCountText = '挖矿未开始';
                     } else {
-                        allocationCountText = '0 次';
+                        // 从用户激活时间与挖矿开始时间的较大值开始计算
+                        const effectiveActivation = Math.max(activationTimestamp, startTime);
+                        const elapsed = now - effectiveActivation;
+                        const count = Math.floor(elapsed / periodDuration);
+                        allocationCountText = `${Math.max(0, count)} 次`;
                     }
-                } else if (activationTimestamp > 0) {
-                    allocationCountText = '挖矿未开始';
                 }
                 
                 // 判断用户激活状态：有算力就说明已激活
@@ -730,7 +736,7 @@
                 
                 userInfoData = {
                     '用户状态': isActivated ? '✅ 已激活' : '❌ 未激活',
-                    '节点状态': userInfo[9] ? '💠 是节点' : '否',
+                    '节点状态': isNodeStatus ? '💠 是节点' : '否',
                     '激活时间': formatDate(userInfo[4]),
                     '分配次数': allocationCountText,
                     'FCL 余额': `<b>${format(axmBalance)} FCL</b>`,
@@ -816,9 +822,10 @@
         async function fetchPersonalNetworkInfo(userAddress) {
             let networkData = {}, teamData = {};
             try {
-                const [referrer, userInfo] = await Promise.all([
+                const [referrer, userInfo, isNodeStatus] = await Promise.all([
                     contracts.bind.getReferrer(userAddress),
-                    contracts.pool.getUserInfo(userAddress)
+                    contracts.pool.getUserInfo(userAddress),
+                    contracts.nodePool.isNode(userAddress)
                 ]);
 
                 if (referrer === ethers.constants.AddressZero) {
@@ -1506,27 +1513,62 @@ function renderNetworkList(rootNode, container) {
         async function fetchContractInfo() {
             let contractData = {}, addressData = {};
             try {
+                // 主网地址有效性校验：确保地址上已部署合约
+                const poolCode = await provider.getCode(config.poolAddress);
+                if (!poolCode || poolCode === '0x') {
+                    throw new Error('Pool address has no contract code on mainnet');
+                }
+
+                // 安全读取封装，避免ABI或地址不匹配造成页面报错
+                const safeRead = async (fn) => {
+                    try {
+                        return await fn();
+                    } catch (err) {
+                        console.warn('Safe read failed:', err);
+                        return null;
+                    }
+                };
+
+                // 尝试多种命名变体读取（例如 minDeposit 或 MIN_DEPOSIT）以提高兼容性
+                const tryReadVariant = async (variants) => {
+                    for (const v of variants) {
+                        try {
+                            if (typeof v === 'function') {
+                                const res = await v();
+                                if (res !== null && res !== undefined) return res;
+                            }
+                        } catch (e) {
+                            // 忽略单个变体的错误，继续尝试其他变体
+                            console.warn('Variant read failed:', e.message || e);
+                        }
+                    }
+                    return null;
+                };
+
                 const [
-                    minDeposit, maxDeposit, nodeDeposit, totalMinable, 
-                    maxProduction, endMiningThreshold, bnbToHashpowerRate
+                    minDeposit, maxDeposit, nodeDeposit
                 ] = await Promise.all([
-                    contracts.pool.MIN_DEPOSIT(),
-                    contracts.pool.MAX_DEPOSIT(),
-                    contracts.pool.NODE_DEPOSIT(),
-                    contracts.pool.TOTAL_MINABLE(),
-                    contracts.pool.MAX_PRODUCTION(),
-                    contracts.pool.END_MINING_THRESHOLD(),
-                    contracts.pool.BNB_TO_HASHPOWER_RATE()
+                    tryReadVariant([() => contracts.pool.minDeposit(), () => contracts.pool.MIN_DEPOSIT()]),
+                    tryReadVariant([() => contracts.pool.maxDeposit(), () => contracts.pool.MAX_DEPOSIT()]),
+                    tryReadVariant([() => contracts.pool.nodeDeposit(), () => contracts.pool.NODE_DEPOSIT()])
+                ]);
+
+                // 其他常量仍使用原有safeRead
+                const [ totalMinable, maxProduction, endMiningThreshold, bnbToHashpowerRate ] = await Promise.all([
+                    safeRead(() => contracts.pool.TOTAL_MINABLE()),
+                    safeRead(() => contracts.pool.MAX_PRODUCTION()),
+                    safeRead(() => contracts.pool.END_MINING_THRESHOLD()),
+                    safeRead(() => contracts.pool.BNB_TO_HASHPOWER_RATE())
                 ]);
 
                 contractData = {
-                    '最小入金': `${format(minDeposit, 18, 4)} BNB`,
-                    '最大入金': `${format(maxDeposit, 18, 2)} BNB`,
-                    '节点质押额': `${format(nodeDeposit, 18, 2)} BNB`,
-                    '总可挖矿量': `${format(totalMinable)} FCL`,
-                    '最大产出限制': `${format(maxProduction)} FCL`,
-                    '结束挖矿阈值': `${format(endMiningThreshold)} FCL`,
-                    '1BNB算力比率': bnbToHashpowerRate.toString()
+                    '最小入金': minDeposit ? `${format(minDeposit, 18, 4)} BNB` : '读取失败（可能ABI/地址不匹配）',
+                    '最大入金': maxDeposit ? `${format(maxDeposit, 18, 2)} BNB` : '读取失败（可能ABI/地址不匹配）',
+                    '节点质押额': nodeDeposit ? `${format(nodeDeposit, 18, 2)} BNB` : '读取失败（可能ABI/地址不匹配）',
+                    '总可挖矿量': totalMinable ? `${format(totalMinable)} FCL` : '读取失败（可能ABI/地址不匹配）',
+                    '最大产出限制': maxProduction ? `${format(maxProduction)} FCL` : '读取失败（可能ABI/地址不匹配）',
+                    '结束挖矿阈值': endMiningThreshold ? `${format(endMiningThreshold)} FCL` : '读取失败（可能ABI/地址不匹配）',
+                    '1BNB算力比率': bnbToHashpowerRate ? bnbToHashpowerRate.toString() : '读取失败（可能ABI/地址不匹配）'
                 };
 
                 addressData = {
@@ -1540,7 +1582,9 @@ function renderNetworkList(rootNode, container) {
 
             } catch (e) {
                 console.error('Error fetching contract info:', e);
-                contractData['错误'] = showError('无法获取合约参数');
+                // 更明确的错误提示：主网地址无合约或ABI不匹配
+                const isNoCode = /no contract code/i.test(e.message) || /has no contract code/i.test(e.message);
+                contractData['错误'] = showError(isNoCode ? '主网地址未部署合约，请确认合约地址' : '无法获取合约参数（可能ABI/地址不匹配）');
                 addressData['错误'] = showError('无法获取合约地址');
             }
             render('contractInfoResult', createCard('⚙️ 合约参数', contractData) + createCard('📍 合约地址', addressData));
@@ -1572,7 +1616,8 @@ function renderNetworkList(rootNode, container) {
                     
                     // 计算已经过去的30分钟周期数
                     const elapsedTime = now - startTime;
-                    const periodDuration = 30 * 60; // 30分钟 = 1800秒
+                    const periodDuration = 24 * 60 * 60; // 24小时
+
                     distributionCount = Math.floor(elapsedTime / periodDuration);
                     
                     // 计算下次分配时间
