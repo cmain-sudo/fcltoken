@@ -463,10 +463,8 @@
 
         </div>
 
-        <!-- 在 User 标签页内，新增一个结果容器用于显示强制卖币状态 -->
         <div id="User" class="tab-content active">
             <div id="userInfoResult" class="results-grid"></div>
-            <div id="forcedSellStatusResult" class="results-grid"></div>
         </div>
 
         <div id="PersonalNetwork" class="tab-content">
@@ -617,9 +615,6 @@
                         "function decimals() view returns (uint8)",
                         "function name() view returns (string)",
                         "function symbol() view returns (string)",
-                        // 强制卖币相关查询
-                        "function getForcedSellStatus(address user) view returns (uint256 userTotalProduction, uint256 userTotalSold, uint256 requiredSellAmount, uint256 remainingSellAmount, bool isCompliant, uint256 nextDeadline)",
-                        "function checkForcedSellRequirement(address user) view returns (bool)"
                     ],
                     pair: [
                         "function getReserves() view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast)",
@@ -762,7 +757,6 @@
 
                     // 显示所有加载动画
                     render('userInfoResult', '<div class="loader"></div>');
-                    render('forcedSellStatusResult', '<div class="loader"></div>');
                     render('personalNetworkInfoResult', '<div class="loader"></div>');
                     render('dividendInfoResult', '<div class="loader"></div>正在模拟入金1BNB的资金流向和奖励分配...');
                     render('marketInfoResult', '<div class="loader"></div>');
@@ -772,7 +766,6 @@
 
                     await Promise.all([
                         fetchUserAndRewardInfo(userAddress),
-                        fetchForcedSellStatus(userAddress),
                         fetchPersonalNetworkInfo(userAddress),
                         fetchGlobalNetworkInfo(userAddress),
                         fetchDividendInfo(userAddress),
@@ -783,40 +776,6 @@
                     ]).catch(err => {
                         console.error('一个或多个查询失败:', err);
                     });
-                }
-
-                // --- 强制卖币状态查询 ---
-                async function fetchForcedSellStatus(userAddress) {
-                    try {
-                        const [status, passed] = await Promise.all([
-                            contracts.token.getForcedSellStatus(userAddress),
-                            contracts.token.checkForcedSellRequirement(userAddress)
-                        ]);
-
-                        // 返回结构：
-                        // [0] userTotalProduction, [1] userTotalSold, [2] requiredSellAmount,
-                        // [3] remainingSellAmount, [4] isCompliant, [5] nextDeadline
-                        const userTotalProduction = status[0];
-                        const userTotalSold = status[1];
-                        const requiredSellAmount = status[2];
-                        const remainingSellAmount = status[3];
-                        const isCompliant = status[4];
-                        const nextDeadline = status[5];
-
-                        const data = {
-                            '合规状态': (isCompliant || passed) ? '✅ 已满足' : '❌ 未满足',
-                            '已卖数量': `${format(userTotalSold)} FCL`,
-                            '需卖数量': `${format(requiredSellAmount)} FCL`,
-                            '剩余需卖': `${format(remainingSellAmount)} FCL`,
-                            '下个截止时间': nextDeadline.eq(0) ? '未激活或无周期' : new Date(nextDeadline.toNumber() * 1000).toLocaleString('zh-CN'),
-                            '总产出(累计)': `${format(userTotalProduction)} FCL`
-                        };
-
-                        render('forcedSellStatusResult', createCard('⛔ 强制卖币状态', data));
-                    } catch (e) {
-                        console.error('查询强制卖币状态失败:', e);
-                        render('forcedSellStatusResult', showError('查询强制卖币状态失败'));
-                    }
                 }
 
                 // --- 数据获取模块 ---
